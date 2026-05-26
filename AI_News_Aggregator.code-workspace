@@ -1,6 +1,11 @@
 {
 	"folders": [
 		{
+			"name": "ai-news-aggregator",
+			"path": "../../../ai-news-aggregator"
+		},
+		{
+			"name": "AI_News_Aggregator",
 			"path": "."
 		}
 	],

@@ -2,4 +2,5 @@ feedparser
 pydantic
 youtube-transcript-api
 requests
+beautifulsoup4
 pytest
