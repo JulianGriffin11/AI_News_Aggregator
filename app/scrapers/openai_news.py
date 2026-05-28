@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 import feedparser
 import requests
+from bs4 import BeautifulSoup  # New requirement for lightweight text parsing
 from pydantic import BaseModel
 
 # Define the structure of our Article data using Pydantic for validation
@@ -12,24 +13,29 @@ class OpenAIArticle(BaseModel):
     guid: str
     published_at: datetime
     category: Optional[str] = None
+    content: Optional[str] = None  # NEW: Holds the clean full-text body of the article
     
 
 class OpenAIScraper:
     def __init__(self):
         # The target OpenAI RSS feed URL
         self.rss_url = "https://openai.com/news/rss.xml"
-        # REMOVED DOCLING HERE — It was never being used anyway!
+        
+        # NEW: human web browser profile to prevent OpenAI from blocking our page download
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9"
+        }
 
     def get_articles(self, hours: int = 24) -> List[OpenAIArticle]:
         # Parse the RSS feed data from the web
-        # Use requests (which bundles certifi) to avoid local macOS SSL issues,
-        # falling back to feedparser fetching directly if requests fails.
         try:
-            resp = requests.get(self.rss_url, timeout=10)
+            resp = requests.get(self.rss_url, headers=self.headers, timeout=10)
             resp.raise_for_status()
             feed = feedparser.parse(resp.content)
         except Exception:
             feed = feedparser.parse(self.rss_url)
+            
         if not feed.entries:
             return []
         
@@ -60,13 +66,42 @@ class OpenAIScraper:
         
         return articles
 
+    def url_to_clean_text(self, url: str) -> Optional[str]:
+        """
+        NEW METHOD: Downloads the live article webpage, target-strips the layout trash,
+        and extracts pure, human-readable text context for your AI Agent.
+        Runs lighting-fast with 0% heavy CPU utilization on your Mac!
+        """
+        try:
+            # Download the target web layout
+            response = requests.get(url, headers=self.headers, timeout=12)
+            if response.status_code != 200:
+                return None
+                
+            # Process the raw HTML content through our parsing layout map
+            soup = BeautifulSoup(response.text, "html.parser")
+            
+            # OpenAI typically wraps its newsroom body text inside an <article> or <main> container
+            article_body = soup.find("article") or soup.find("main") or soup.body
+            if not article_body:
+                return None
+                
+            # Extract text blocks, separate them with clean line breaks, and strip whitespace padding
+            raw_text = article_body.get_text(separator="\n")
+            clean_lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+            
+            return "\n".join(clean_lines)
+            
+        except Exception as e:
+            print(f"Diagnostics: Failed to download/parse full article layout: {e}")
+            return None
+
   
 # This ensures the code only runs if executing this file directly
 if __name__ == "__main__":
     # Initialize our scraper object
     scraper = OpenAIScraper()
     
-    # Let's set hours to 500 so we actually catch historical data on the feed
     hours_to_check = 50
     print(f"Fetching OpenAI articles from the last {hours_to_check} hours...\n")
     articles: List[OpenAIArticle] = scraper.get_articles(hours=hours_to_check)
@@ -75,11 +110,20 @@ if __name__ == "__main__":
     if not articles:
         print("No articles found within that timeframe!")
     else:
-        print(f"Found {len(articles)} article(s):\n")
-        for index, article in enumerate(articles, start=1):
-            print(f"--- Article #{index} ---")
-            print(f"Title: {article.title}")
-            print(f"Published: {article.published_at}")
-            print(f"URL: {article.url}")
-            print(f"Category: {article.category}")
-            print(f"Description: {article.description}\n")
+        print(f"Found {len(articles)} article(s). Running live text extraction test on Article #1...\n")
+        
+        target_article = articles[0]
+        print(f"Target Title: {target_article.title}")
+        print(f"Target URL: {target_article.url}")
+        print("-" * 50)
+        print("Downloading full page text via lightweight native parser...")
+        
+        # Test our new lightweight text download utility method
+        full_text = scraper.url_to_clean_text(target_article.url)
+        
+        if full_text:
+            print("✓ Text extraction successful! Printing out the first 400 characters:\n")
+            print(full_text[:400] + "...\n")
+            print("-" * 50)
+        else:
+            print("⚠️ Failed to parse full-text body.")

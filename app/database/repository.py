@@ -28,7 +28,10 @@ class Repository:
         return video
     
     def create_openai_article(self, guid: str, title: str, url: str, published_at: datetime,
-                              description: str = "", category: Optional[str] = None) -> Optional[OpenAIArticle]:
+                              description: str = "", category: Optional[str] = None, content: Optional[str] = None) -> Optional[OpenAIArticle]:
+        """
+        Creates a single OpenAI article row, now accepting full body text content.
+        """
         existing = self.session.query(OpenAIArticle).filter_by(guid=guid).first()
         if existing:
             return None
@@ -38,14 +41,18 @@ class Repository:
             url=url,
             published_at=published_at,
             description=description,
-            category=category
+            category=category,
+            content=content  # Added text body field mapping
         )
         self.session.add(article)
         self.session.commit()
         return article
     
     def create_anthropic_article(self, guid: str, title: str, url: str, published_at: datetime,
-                                description: str = "", category: Optional[str] = None) -> Optional[AnthropicArticle]:
+                                description: str = "", category: Optional[str] = None, content: Optional[str] = None) -> Optional[AnthropicArticle]:
+        """
+        Creates a single Anthropic article row, now accepting full body text content.
+        """
         existing = self.session.query(AnthropicArticle).filter_by(guid=guid).first()
         if existing:
             return None
@@ -55,7 +62,8 @@ class Repository:
             url=url,
             published_at=published_at,
             description=description,
-            category=category
+            category=category,
+            content=content  # Added text body field mapping
         )
         self.session.add(article)
         self.session.commit()
@@ -81,6 +89,9 @@ class Repository:
         return len(new_videos)
     
     def bulk_create_openai_articles(self, articles: List[dict]) -> int:
+        """
+        Inserts multiple OpenAI dict packages, updating existing ones and mapping content.
+        """
         new_articles = []
         for a in articles:
             existing = self.session.query(OpenAIArticle).filter_by(guid=a["guid"]).first()
@@ -91,14 +102,22 @@ class Repository:
                     url=a["url"],
                     published_at=a["published_at"],
                     description=a.get("description", ""),
-                    category=a.get("category")
+                    category=a.get("category"),
+                    content=a.get("content")  # Ingest full plain text content
                 ))
+            else:
+                # Update pattern: ensures existing records catch the new text body downloads
+                if a.get("content"):
+                    existing.content = a["content"]
         if new_articles:
             self.session.add_all(new_articles)
-            self.session.commit()
+        self.session.commit()
         return len(new_articles)
     
     def bulk_create_anthropic_articles(self, articles: List[dict]) -> int:
+        """
+        Inserts multiple Anthropic dict packages, updating existing ones and mapping content.
+        """
         new_articles = []
         for a in articles:
             existing = self.session.query(AnthropicArticle).filter_by(guid=a["guid"]).first()
@@ -109,26 +128,17 @@ class Repository:
                     url=a["url"],
                     published_at=a["published_at"],
                     description=a.get("description", ""),
-                    category=a.get("category")
+                    category=a.get("category"),
+                    content=a.get("content")  # Ingest full plain text content
                 ))
+            else:
+                # Update pattern: ensures existing records catch the new text body downloads
+                if a.get("content"):
+                    existing.content = a["content"]
         if new_articles:
             self.session.add_all(new_articles)
-            self.session.commit()
+        self.session.commit()
         return len(new_articles)
-    
-    def get_anthropic_articles_without_markdown(self, limit: Optional[int] = None) -> List[AnthropicArticle]:
-        query = self.session.query(AnthropicArticle).filter(AnthropicArticle.markdown.is_(None))
-        if limit:
-            query = query.limit(limit)
-        return query.all()
-    
-    def update_anthropic_article_markdown(self, guid: str, markdown: str) -> bool:
-        article = self.session.query(AnthropicArticle).filter_by(guid=guid).first()
-        if article:
-            article.markdown = markdown
-            self.session.commit()
-            return True
-        return False
     
     def get_youtube_videos_without_transcript(self, limit: Optional[int] = None) -> List[YouTubeVideo]:
         query = self.session.query(YouTubeVideo).filter(YouTubeVideo.transcript.is_(None))
@@ -145,6 +155,9 @@ class Repository:
         return False
     
     def get_articles_without_digest(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Gathers raw unsummarized database context to pass into your LLM Digest Engine.
+        """
         articles = []
         seen_ids = set()
         
@@ -152,6 +165,7 @@ class Repository:
         for d in digests:
             seen_ids.add(f"{d.article_type}:{d.article_id}")
         
+        # YouTube fallback mapping hook (remains intact for backwards structural safety)
         youtube_videos = self.session.query(YouTubeVideo).filter(
             YouTubeVideo.transcript.isnot(None),
             YouTubeVideo.transcript != "__UNAVAILABLE__"
@@ -168,6 +182,7 @@ class Repository:
                     "published_at": video.published_at
                 })
         
+        # Modified: OpenAI query extracts full text data from content instead of snippet descriptions
         openai_articles = self.session.query(OpenAIArticle).all()
         for article in openai_articles:
             key = f"openai:{article.guid}"
@@ -177,13 +192,12 @@ class Repository:
                     "id": article.guid,
                     "title": article.title,
                     "url": article.url,
-                    "content": article.description or "",
+                    "content": getattr(article, "content", None) or article.description or "",
                     "published_at": article.published_at
                 })
         
-        anthropic_articles = self.session.query(AnthropicArticle).filter(
-            AnthropicArticle.markdown.isnot(None)
-        ).all()
+        # Modified: Anthropic query checks content text fields consistently with OpenAI
+        anthropic_articles = self.session.query(AnthropicArticle).all()
         for article in anthropic_articles:
             key = f"anthropic:{article.guid}"
             if key not in seen_ids:
@@ -192,7 +206,7 @@ class Repository:
                     "id": article.guid,
                     "title": article.title,
                     "url": article.url,
-                    "content": article.markdown or article.description or "",
+                    "content": getattr(article, "content", None) or article.description or "",
                     "published_at": article.published_at
                 })
         
@@ -245,4 +259,3 @@ class Repository:
             }
             for d in digests
         ]
-

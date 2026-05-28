@@ -7,7 +7,6 @@ Base = declarative_base()
 
 class YouTubeVideo(Base):
     __tablename__ = "youtube_videos"
-    # Route this table explicitly to your clean project folder schema
     __table_args__ = {"schema": "ai_news_aggregator"}
     
     video_id = Column(String, primary_key=True)
@@ -30,6 +29,7 @@ class OpenAIArticle(Base):
     description = Column(Text)
     published_at = Column(DateTime, nullable=False)
     category = Column(String, nullable=True)
+    content = Column(Text, nullable=True)  # FIX: Added full text column mapping!
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -43,7 +43,7 @@ class AnthropicArticle(Base):
     description = Column(Text)
     published_at = Column(DateTime, nullable=False)
     category = Column(String, nullable=True)
-    markdown = Column(Text, nullable=True)
+    content = Column(Text, nullable=True)  # FIX: Renamed from markdown to content!
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
