@@ -1,41 +1,27 @@
 from typing import List
-from app.config import YOUTUBE_CHANNELS
-from .scrapers.youtube import YouTubeScraper, ChannelVideo
-from .scrapers.openai_news import OpenAIScraper, OpenAIArticle
+from app.scrapers.openai_news import OpenAIScraper, OpenAIArticle
 from .scrapers.anthropic_news import AnthropicScraper, AnthropicArticle
 from .database.repository import Repository
 
 
 def run_scrapers(hours: int = 24) -> dict:
-    youtube_scraper = YouTubeScraper()
+    """
+    Streamlined core aggregator that harvests high-density text articles 
+    directly from tier-1 AI corporate newsrooms.
+    """
     openai_scraper = OpenAIScraper()
     anthropic_scraper = AnthropicScraper()
     repo = Repository()
     
-    youtube_videos = []
-    video_dicts = []
-    for channel_id in YOUTUBE_CHANNELS:
-        videos = youtube_scraper.get_latest_videos(channel_id, hours=hours)
-        youtube_videos.extend(videos)
-        video_dicts.extend([
-            {
-                "video_id": v.video_id,
-                "title": v.title,
-                "url": v.url,
-                "channel_id": channel_id,
-                "published_at": v.published_at,
-                "description": v.description,
-                "transcript": v.transcript
-            }
-            for v in videos
-        ])
-    
+    # 1. Harvest OpenAI Corporate News
+    print(f"Scanning OpenAI newsroom for articles in the last {hours} hours...")
     openai_articles = openai_scraper.get_articles(hours=hours)
+    
+    # 2. Harvest Anthropic Corporate News
+    print(f"Scanning Anthropic newsroom for articles in the last {hours} hours...")
     anthropic_articles = anthropic_scraper.get_articles(hours=hours)
     
-    if video_dicts:
-        repo.bulk_create_youtube_videos(video_dicts)
-    
+    # 3. Commit OpenAI data to the database
     if openai_articles:
         article_dicts = [
             {
@@ -49,7 +35,11 @@ def run_scrapers(hours: int = 24) -> dict:
             for a in openai_articles
         ]
         repo.bulk_create_openai_articles(article_dicts)
+        print(f"Successfully cached {len(openai_articles)} OpenAI articles.")
+    else:
+        print("No new OpenAI articles found within time window.")
     
+    # 4. Commit Anthropic data to the database
     if anthropic_articles:
         article_dicts = [
             {
@@ -63,16 +53,25 @@ def run_scrapers(hours: int = 24) -> dict:
             for a in anthropic_articles
         ]
         repo.bulk_create_anthropic_articles(article_dicts)
+        print(f"Successfully cached {len(anthropic_articles)} Anthropic articles.")
+    else:
+        print("No new Anthropic articles found within time window.")
     
     return {
-        "youtube": youtube_videos,
         "openai": openai_articles,
         "anthropic": anthropic_articles,
     }
 
 
 if __name__ == "__main__":
+    print("=" * 60)
+    print("LAUNCHING STREAMLINED AI NEWS AGGREGATOR PRODUCTION PIPELINE")
+    print("=" * 60)
+    
     results = run_scrapers(hours=48)
-    print(f"YouTube videos: {len(results['youtube'])}")
-    print(f"OpenAI articles: {len(results['openai'])}")
-    print(f"Anthropic articles: {len(results['anthropic'])}")
+    
+    print("\n" + "=" * 60)
+    print("AGGREGATION RUN SUMMARY:")
+    print(f"  ✓ OpenAI Articles Gathered:   {len(results['openai'])}")
+    print(f"  ✓ Anthropic Articles Gathered: {len(results['anthropic'])}")
+    print("=" * 60)
