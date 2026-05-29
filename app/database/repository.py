@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
-from .models import YouTubeVideo, OpenAIArticle, AnthropicArticle, Digest
+from .models import OpenAIArticle, AnthropicArticle, Digest  # FIX: Removed YouTubeVideo
 from .connection import get_session
 
 
@@ -9,29 +9,8 @@ class Repository:
     def __init__(self, session: Optional[Session] = None):
         self.session = session or get_session()
     
-    def create_youtube_video(self, video_id: str, title: str, url: str, channel_id: str, 
-                            published_at: datetime, description: str = "", transcript: Optional[str] = None) -> Optional[YouTubeVideo]:
-        existing = self.session.query(YouTubeVideo).filter_by(video_id=video_id).first()
-        if existing:
-            return None
-        video = YouTubeVideo(
-            video_id=video_id,
-            title=title,
-            url=url,
-            channel_id=channel_id,
-            published_at=published_at,
-            description=description,
-            transcript=transcript
-        )
-        self.session.add(video)
-        self.session.commit()
-        return video
-    
     def create_openai_article(self, guid: str, title: str, url: str, published_at: datetime,
                               description: str = "", category: Optional[str] = None, content: Optional[str] = None) -> Optional[OpenAIArticle]:
-        """
-        Creates a single OpenAI article row, now accepting full body text content.
-        """
         existing = self.session.query(OpenAIArticle).filter_by(guid=guid).first()
         if existing:
             return None
@@ -42,7 +21,7 @@ class Repository:
             published_at=published_at,
             description=description,
             category=category,
-            content=content  # Added text body field mapping
+            content=content
         )
         self.session.add(article)
         self.session.commit()
@@ -50,9 +29,6 @@ class Repository:
     
     def create_anthropic_article(self, guid: str, title: str, url: str, published_at: datetime,
                                 description: str = "", category: Optional[str] = None, content: Optional[str] = None) -> Optional[AnthropicArticle]:
-        """
-        Creates a single Anthropic article row, now accepting full body text content.
-        """
         existing = self.session.query(AnthropicArticle).filter_by(guid=guid).first()
         if existing:
             return None
@@ -63,35 +39,13 @@ class Repository:
             published_at=published_at,
             description=description,
             category=category,
-            content=content  # Added text body field mapping
+            content=content
         )
         self.session.add(article)
         self.session.commit()
         return article
     
-    def bulk_create_youtube_videos(self, videos: List[dict]) -> int:
-        new_videos = []
-        for v in videos:
-            existing = self.session.query(YouTubeVideo).filter_by(video_id=v["video_id"]).first()
-            if not existing:
-                new_videos.append(YouTubeVideo(
-                    video_id=v["video_id"],
-                    title=v["title"],
-                    url=v["url"],
-                    channel_id=v.get("channel_id", ""),
-                    published_at=v["published_at"],
-                    description=v.get("description", ""),
-                    transcript=v.get("transcript")
-                ))
-        if new_videos:
-            self.session.add_all(new_videos)
-            self.session.commit()
-        return len(new_videos)
-    
     def bulk_create_openai_articles(self, articles: List[dict]) -> int:
-        """
-        Inserts multiple OpenAI dict packages, updating existing ones and mapping content.
-        """
         new_articles = []
         for a in articles:
             existing = self.session.query(OpenAIArticle).filter_by(guid=a["guid"]).first()
@@ -103,10 +57,9 @@ class Repository:
                     published_at=a["published_at"],
                     description=a.get("description", ""),
                     category=a.get("category"),
-                    content=a.get("content")  # Ingest full plain text content
+                    content=a.get("content")
                 ))
             else:
-                # Update pattern: ensures existing records catch the new text body downloads
                 if a.get("content"):
                     existing.content = a["content"]
         if new_articles:
@@ -115,9 +68,6 @@ class Repository:
         return len(new_articles)
     
     def bulk_create_anthropic_articles(self, articles: List[dict]) -> int:
-        """
-        Inserts multiple Anthropic dict packages, updating existing ones and mapping content.
-        """
         new_articles = []
         for a in articles:
             existing = self.session.query(AnthropicArticle).filter_by(guid=a["guid"]).first()
@@ -129,10 +79,9 @@ class Repository:
                     published_at=a["published_at"],
                     description=a.get("description", ""),
                     category=a.get("category"),
-                    content=a.get("content")  # Ingest full plain text content
+                    content=a.get("content")
                 ))
             else:
-                # Update pattern: ensures existing records catch the new text body downloads
                 if a.get("content"):
                     existing.content = a["content"]
         if new_articles:
@@ -140,23 +89,9 @@ class Repository:
         self.session.commit()
         return len(new_articles)
     
-    def get_youtube_videos_without_transcript(self, limit: Optional[int] = None) -> List[YouTubeVideo]:
-        query = self.session.query(YouTubeVideo).filter(YouTubeVideo.transcript.is_(None))
-        if limit:
-            query = query.limit(limit)
-        return query.all()
-    
-    def update_youtube_video_transcript(self, video_id: str, transcript: str) -> bool:
-        video = self.session.query(YouTubeVideo).filter_by(video_id=video_id).first()
-        if video:
-            video.transcript = transcript
-            self.session.commit()
-            return True
-        return False
-    
     def get_articles_without_digest(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
-        Gathers raw unsummarized database context to pass into your LLM Digest Engine.
+        Gathers raw unsummarized corporate database context for your Gemini Digest Agent.
         """
         articles = []
         seen_ids = set()
@@ -165,24 +100,6 @@ class Repository:
         for d in digests:
             seen_ids.add(f"{d.article_type}:{d.article_id}")
         
-        # YouTube fallback mapping hook (remains intact for backwards structural safety)
-        youtube_videos = self.session.query(YouTubeVideo).filter(
-            YouTubeVideo.transcript.isnot(None),
-            YouTubeVideo.transcript != "__UNAVAILABLE__"
-        ).all()
-        for video in youtube_videos:
-            key = f"youtube:{video.video_id}"
-            if key not in seen_ids:
-                articles.append({
-                    "type": "youtube",
-                    "id": video.video_id,
-                    "title": video.title,
-                    "url": video.url,
-                    "content": video.transcript or video.description or "",
-                    "published_at": video.published_at
-                })
-        
-        # Modified: OpenAI query extracts full text data from content instead of snippet descriptions
         openai_articles = self.session.query(OpenAIArticle).all()
         for article in openai_articles:
             key = f"openai:{article.guid}"
@@ -196,7 +113,6 @@ class Repository:
                     "published_at": article.published_at
                 })
         
-        # Modified: Anthropic query checks content text fields consistently with OpenAI
         anthropic_articles = self.session.query(AnthropicArticle).all()
         for article in anthropic_articles:
             key = f"anthropic:{article.guid}"

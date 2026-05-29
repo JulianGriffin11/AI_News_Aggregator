@@ -5,20 +5,6 @@ from sqlalchemy.orm import declarative_base
 Base = declarative_base()
 
 
-class YouTubeVideo(Base):
-    __tablename__ = "youtube_videos"
-    __table_args__ = {"schema": "ai_news_aggregator"}
-    
-    video_id = Column(String, primary_key=True)
-    title = Column(String, nullable=False)
-    url = Column(String, nullable=False)
-    channel_id = Column(String, nullable=False)
-    published_at = Column(DateTime, nullable=False)
-    description = Column(Text)
-    transcript = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
 class OpenAIArticle(Base):
     __tablename__ = "openai_articles"
     __table_args__ = {"schema": "ai_news_aggregator"}
@@ -29,7 +15,7 @@ class OpenAIArticle(Base):
     description = Column(Text)
     published_at = Column(DateTime, nullable=False)
     category = Column(String, nullable=True)
-    content = Column(Text, nullable=True)  # FIX: Added full text column mapping!
+    content = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -43,7 +29,7 @@ class AnthropicArticle(Base):
     description = Column(Text)
     published_at = Column(DateTime, nullable=False)
     category = Column(String, nullable=True)
-    content = Column(Text, nullable=True)  # FIX: Renamed from markdown to content!
+    content = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
