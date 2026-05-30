@@ -82,8 +82,8 @@ if __name__ == "__main__":
     print("LAUNCHING STREAMLINED AI NEWS AGGREGATOR PRODUCTION PIPELINE")
     print("=" * 60)
     
-    # Check the last 48 hours for data uploads
-    results = run_scrapers(hours=48)
+    # Check the last 24 hours for data uploads
+    results = run_scrapers(hours=24)
     
     print("\n" + "=" * 60)
     print("AGGREGATION RUN SUMMARY:")

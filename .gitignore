@@ -1,0 +1,20 @@
+# Local Environment Configurations (CRITICAL DATA PROTECTION)
+.env
+.env.local
+.env.*
+
+# Python Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python Cache Architecture
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Mac Operating System Junk Files
+.DS_Store
