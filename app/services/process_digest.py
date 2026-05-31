@@ -1,15 +1,18 @@
-from typing import Optional
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
+from typing import Optional
+from dotenv import load_dotenv
 
-# Force the execution runtime path to recognize the root package structure
+load_dotenv()
+
+# Force runtime path recognition
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.agent.digest_agent import DigestAgent
 from app.database.repository import Repository
 
-# Configure detailed terminal logging metrics
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
