@@ -1,32 +1,26 @@
-services:
-  # --------------------------------------------------------
-  # 1. THE STORAGE LAYER: CLOUD POSTGRES DATABASE
-  # --------------------------------------------------------
-  - type: db
-    name: ai-news-postgres-db
+# --------------------------------------------------------
+# 1. THE STORAGE LAYER: DEFINED AT THE ROOT LEVEL
+# --------------------------------------------------------
+databases:
+  - name: ai-news-postgres-db
     plan: free
-    ipAllowList: [] # Allows your Render cron job to securely connect internally
 
-  # --------------------------------------------------------
-  # 2. THE AUTOMATION LAYER: 24-HOUR CRON JOB ENGINE
-  # --------------------------------------------------------
+# --------------------------------------------------------
+# 2. THE COMPUTATION LAYER: DEFINED UNDER SERVICES
+# --------------------------------------------------------
+services:
   - type: cron
     name: ai-news-daily-runner
     plan: free
     runtime: python
-    # Tells Render to trigger your master entry switch every day at 8:00 AM UTC
-    schedule: "0 8 * * *" 
-    # The build command to install all your pip requirements
+    schedule: "0 8 * * *" # Triggers automatically every morning at 8:00 AM UTC
     buildCommand: "pip install -r requirements.txt"
-    # The clean terminal run command we tested locally
     startCommand: "python3 main.py"
     envVars:
       - key: DATABASE_URL
-        fromLink:
-          type: db
+        fromDatabase:
           name: ai-news-postgres-db
           property: connectionString
-      # Pulls your Gemini credentials securely from your dashboard settings
       - key: GEMINI_API_KEY
         sync: false
       - key: MY_EMAIL
