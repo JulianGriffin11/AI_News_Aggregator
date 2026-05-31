@@ -2,7 +2,6 @@ import logging
 from app.daily_runner import run_daily_pipeline
 from app.database.connection import engine
 from app.database.models import Base
-# Import text from SQLAlchemy to allow raw SQL executions
 from sqlalchemy import text  
 
 logging.basicConfig(level=logging.INFO)
@@ -10,12 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 def main(hours: int = 24, top_n: int = 10):
-    # 1. Open a direct connection handle to Render's cloud instance
+    # This block MUST exist before metadata generation!
     with engine.connect() as conn:
         logger.info("Initializing remote database schema containers...")
-        # 2. Execute a raw DDL command to safely generate your schema if missing
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS ai_news_aggregator;"))
-        # 3. Commit the schema generation transaction explicitly
         conn.commit()
     
     logger.info("Synchronizing cloud database schema models...")
