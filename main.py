@@ -1,5 +1,16 @@
+import logging
+from app.daily_runner import run_daily_pipeline
+from app.database.connection import engine
+from app.database.models import Base
+# ────────────────────────────────────────────────
+from sqlalchemy import text  
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 def main(hours: int = 24, top_n: int = 10):
-    # 1. Open connection handle to Render's instance
+    # This now has full access to the imported engine variable!
     with engine.connect() as conn:
         logger.info("Initializing remote database schema containers...")
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS ai_news_aggregator;"))
@@ -9,15 +20,12 @@ def main(hours: int = 24, top_n: int = 10):
     Base.metadata.create_all(bind=engine)
     logger.info("✓ Database schema synchronized successfully.")
     
-    # 3. Capture the dictionary payload returned by your daily runner engine
     pipeline_result = run_daily_pipeline(hours=hours, top_n=top_n)
     
-    # 4. Check if the pipeline purposefully skipped sending an email because it was empty
     if not pipeline_result["success"] and "No digests available" in pipeline_result.get("error", ""):
         logger.info("============================================================")
         logger.info("📢 Quiet Day: No new articles found. Exiting gracefully.")
         logger.info("============================================================")
-        # Force a successful status return dictionary so the system exits green!
         return {"success": True, "reason": "No new content to process"}
         
     return pipeline_result
@@ -35,6 +43,4 @@ if __name__ == "__main__":
         top_n = int(sys.argv[2])
     
     result = main(hours=hours, top_n=top_n)
-    
-    # If our graceful check overrode the error, this exits clean with 0!
     exit(0 if result["success"] else 1)
