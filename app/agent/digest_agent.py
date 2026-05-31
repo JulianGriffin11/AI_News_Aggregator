@@ -1,15 +1,27 @@
-import os
+"""
+================================================================================
+🎯 AGENT LAYER: STRUCTURED LLM DIGEST GENERATOR
+================================================================================
+Description:
+  This module houses the core distillation logic for the news aggregator. It
+  takes long-form raw text bodies scraped from corporate outlets, feeds them to
+  the Gemini API, and uses Pydantic structural validation
+  to enforce a strict JSON output matching the target title and summary schema.
+================================================================================
+"""
+
+import logging
 from typing import Optional
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# Ingest your .env hidden file parameters
 load_dotenv()
 
+logger = logging.getLogger(__name__)
 
-# This Pydantic model defines the structured blueprint Gemini must return
+
 class DigestOutput(BaseModel):
     title: str
     summary: str
@@ -29,20 +41,15 @@ Guidelines:
 
 class DigestAgent:
     def __init__(self):
-        # The modern unified client entry point
         self.client = genai.Client()
         self.model_name = "gemini-2.5-flash"
         self.system_prompt = PROMPT
 
     def generate_digest(self, title: str, content: str, article_type: str) -> Optional[DigestOutput]:
-        """
-        Connects to Gemini via modern client architecture and forces a structured JSON 
-        response mapping directly back to our DigestOutput object without any retry logic.
-        """
         try:
+            # Slicing input string bounds to guard against bloated payload token spikes
             user_prompt = f"Create a digest for this {article_type}: \n Title: {title} \n Content: {content[:8000]}"
 
-            # Build the configuration using the modern types module layout
             config = types.GenerateContentConfig(
                 system_instruction=self.system_prompt,
                 temperature=0.7,
@@ -50,7 +57,6 @@ class DigestAgent:
                 response_schema=DigestOutput,
             )
 
-            # Fire off the structural generation request instantly
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=user_prompt,
@@ -63,5 +69,5 @@ class DigestAgent:
             return None
             
         except Exception as e:
-            print(f"Diagnostics: Structured content digest generation failed: {e}")
+            logger.error(f"Core engine failed to calculate structured text summary for '{title[:30]}...': {e}")
             return None

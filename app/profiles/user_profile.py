@@ -1,7 +1,23 @@
+"""
+================================================================================
+🎯 PROFILE LAYER: PERSONALIZED CURATION MATRIX MODEL
+================================================================================
+Description:
+  Contains the information for the user profile. The Curator
+  and Email Agents read these variables to score, rank, and filter scraped
+  articles, completely bypassing marketing hype or general commentary.
+================================================================================
+"""
+
 USER_PROFILE = {
-    "name": "Mr.Griffin",
+    "name": "Mr. Griffin",
     "title": "Data Analyst & AI Engineer",
-    "background": "B.Sc. in Statistics from York University with deep expertise in probabilistic modeling, AI, and data-driven analysis. Highly focused on enterprise data automation, structured predictive modeling, and system infrastructure.",
+    "background": (
+        "B.Sc. in Statistics from York University with deep expertise in "
+        "probabilistic modeling, AI, and data-driven analysis. Highly focused "
+        "on enterprise data automation, structured predictive modeling, and "
+        "system infrastructure."
+    ),
     "interests": [
         "Structured Output Frameworks and Pydantic automation",
         "Deterministic Agentic Workflows and multi-agent system design",
@@ -23,4 +39,3 @@ USER_PROFILE = {
     },
     "expertise_level": "Advanced-Intermediate"
 }
-

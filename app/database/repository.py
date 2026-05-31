@@ -1,9 +1,19 @@
+"""
+================================================================================
+🎯 DATA ACCESS LAYER: RELATIONAL REPOSITORY MODULE
+================================================================================
+Description:
+  This module acts as the explicit data access layer for the application. 
+  It encapsulates all transactions with the cloud PostgreSQL database using 
+  SQLAlchemy Session contexts, managing bulk content caching, duplicate checking, 
+  unprocessed article discovery, and rolling digest history generation.
+================================================================================
+"""
+
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
-from .models import OpenAIArticle, AnthropicArticle, Digest  # FIX: Removed YouTubeVideo
-from .connection import get_session
-
+from .models import OpenAIArticle, AnthropicArticle, Digest  
 
 class Repository:
     def __init__(self, session: Optional[Session] = None):
@@ -28,7 +38,7 @@ class Repository:
         return article
     
     def create_anthropic_article(self, guid: str, title: str, url: str, published_at: datetime,
-                                description: str = "", category: Optional[str] = None, content: Optional[str] = None) -> Optional[AnthropicArticle]:
+                                 description: str = "", category: Optional[str] = None, content: Optional[str] = None) -> Optional[AnthropicArticle]:
         existing = self.session.query(AnthropicArticle).filter_by(guid=guid).first()
         if existing:
             return None
@@ -90,9 +100,6 @@ class Repository:
         return len(new_articles)
     
     def get_articles_without_digest(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Gathers raw unsummarized corporate database context for your Gemini Digest Agent.
-        """
         articles = []
         seen_ids = set()
         
@@ -123,55 +130,4 @@ class Repository:
                     "title": article.title,
                     "url": article.url,
                     "content": getattr(article, "content", None) or article.description or "",
-                    "published_at": article.published_at
-                })
-        
-        if limit:
-            articles = articles[:limit]
-        
-        return articles
-    
-    def create_digest(self, article_type: str, article_id: str, url: str, title: str, summary: str, published_at: Optional[datetime] = None) -> Optional[Digest]:
-        digest_id = f"{article_type}:{article_id}"
-        existing = self.session.query(Digest).filter_by(id=digest_id).first()
-        if existing:
-            return None
-        
-        if published_at:
-            if published_at.tzinfo is None:
-                published_at = published_at.replace(tzinfo=timezone.utc)
-            created_at = published_at
-        else:
-            created_at = datetime.now(timezone.utc)
-        
-        digest = Digest(
-            id=digest_id,
-            article_type=article_type,
-            article_id=article_id,
-            url=url,
-            title=title,
-            summary=summary,
-            created_at=created_at
-        )
-        self.session.add(digest)
-        self.session.commit()
-        return digest
-    
-    def get_recent_digests(self, hours: int = 24) -> List[Dict[str, Any]]:
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-        digests = self.session.query(Digest).filter(
-            Digest.created_at >= cutoff_time
-        ).order_by(Digest.created_at.desc()).all()
-        
-        return [
-            {
-                "id": d.id,
-                "article_type": d.article_type,
-                "article_id": d.article_id,
-                "url": d.url,
-                "title": d.title,
-                "summary": d.summary,
-                "created_at": d.created_at
-            }
-            for d in digests
-        ]
+                    "published_at": article.published_

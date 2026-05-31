@@ -1,17 +1,27 @@
-import logging
+"""
+================================================================================
+🎯 SERVICE LAYER: UNIFIED LLM DIGEST ENGINE
+================================================================================
+Description:
+  This module pulls raw scraped content from the PostgreSQL database that lacks
+  an active digest entry. It coordinates passing the payloads directly to the
+  structured Pydantic generation layer using the Gemini API and commits the
+  resulting technical summaries back to the cloud storage layer.
+================================================================================
+"""
+
 import sys
-from datetime import datetime
+import logging
 from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
+from app.agent.digest_agent import DigestAgent
+from app.database.repository import Repository
 
 load_dotenv()
 
-# Force runtime path recognition
+# Ensure internal package structures are resolved correctly during individual file execution
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from app.agent.digest_agent import DigestAgent
-from app.database.repository import Repository
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,30 +32,25 @@ logger = logging.getLogger(__name__)
 
 
 def process_digests(limit: Optional[int] = None) -> dict:
-    """
-    Orchestration loop that pulls raw data text out of Postgres, feeds it
-    to the Gemini Structured Output Agent, and commits the summary results.
-    """
     agent = DigestAgent()
     repo = Repository()
     
-    # Query your repository layer to pull records missing an entry in the digests table
     articles = repo.get_articles_without_digest(limit=limit)
     total = len(articles)
     processed = 0
     failed = 0
     
-    logger.info(f"Starting digest processing for {total} articles")
+    logger.info(f"Starting digest processing loop for {total} new items...")
     
     for idx, article in enumerate(articles, 1):
         article_type = article["type"]
         article_id = article["id"]
-        article_title = article["title"][:60] + "..." if len(article["title"]) > 60 else article["title"]
         
-        logger.info(f"[{idx}/{total}] Processing {article_type}: {article_title} (ID: {article_id})")
+        # Keep terminal log tracking outputs looking concise
+        clean_title = article["title"][:50] + "..." if len(article["title"]) > 50 else article["title"]
+        logger.info(f"[{idx}/{total}] Processing {article_type}: '{clean_title}' (ID: {article_id})")
         
         try:
-            # Trigger our refactored google-genai client script
             digest_result = agent.generate_digest(
                 title=article["title"],
                 content=article["content"],
@@ -53,7 +58,6 @@ def process_digests(limit: Optional[int] = None) -> dict:
             )
             
             if digest_result:
-                # Commit the pristine Pydantic structured output directly into Postgres
                 repo.create_digest(
                     article_type=article_type,
                     article_id=article_id,
@@ -63,15 +67,15 @@ def process_digests(limit: Optional[int] = None) -> dict:
                     published_at=article.get("published_at")
                 )
                 processed += 1
-                logger.info(f"✓ Successfully created digest for {article_type} {article_id}")
+                logger.info(f"✓ Successfully cached digest model footprint for ID: {article_id}")
             else:
                 failed += 1
-                logger.warning(f"✗ Failed to generate digest for {article_type} {article_id}")
+                logger.warning(f"✗ Core engine generation dropped empty response for ID: {article_id}")
         except Exception as e:
             failed += 1
-            logger.error(f"✗ Error processing {article_type} {article_id}: {e}")
-    
-    logger.info(f"Processing complete: {processed} processed, {failed} failed out of {total} total")
+            logger.error(f"✗ Processing failure encountered on ID {article_id}: {e}")
+            
+    logger.info(f"Batch completed execution: {processed} resolved | {failed} dropped | {total} total.")
     
     return {
         "total": total,
@@ -81,7 +85,5 @@ def process_digests(limit: Optional[int] = None) -> dict:
 
 
 if __name__ == "__main__":
-    result = process_digests()
-    print(f"Total articles: {result['total']}")
-    print(f"Processed: {result['processed']}")
-    print(f"Failed: {result['failed']}")
+    run_metrics = process_digests()
+    logger.info(f"Local Dry Run Summary -> {run_metrics}")

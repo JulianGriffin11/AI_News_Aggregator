@@ -1,4 +1,15 @@
-from datetime import datetime
+"""
+================================================================================
+🎯 DATA ACCESS LAYER: DECLARATIVE SQLALCHEMY SCHEMA MODELS
+================================================================================
+Description:
+  This module defines the structural database schema layers for the application.
+  It uses SQLAlchemy's declarative base models to map out corporate scraping 
+  targets (OpenAI and Anthropic) along with synthesized LLM digest tables.
+================================================================================
+"""
+
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Text
 from sqlalchemy.orm import declarative_base
 
@@ -16,7 +27,7 @@ class OpenAIArticle(Base):
     published_at = Column(DateTime, nullable=False)
     category = Column(String, nullable=True)
     content = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class AnthropicArticle(Base):
@@ -30,7 +41,7 @@ class AnthropicArticle(Base):
     published_at = Column(DateTime, nullable=False)
     category = Column(String, nullable=True)
     content = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Digest(Base):
@@ -43,5 +54,5 @@ class Digest(Base):
     url = Column(String, nullable=False)
     title = Column(String, nullable=False)
     summary = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

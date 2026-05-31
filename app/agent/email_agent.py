@@ -1,4 +1,16 @@
-import os
+"""
+================================================================================
+🎯 AGENT LAYER: STRUCTURED LLM EMAIL SYNTHESIZER
+================================================================================
+Description:
+  This module defines the structured Pydantic models and executive runtime logic
+  for the Email Agent. It leverages the native Google GenAI API and a dedicated
+  system instruction prompt to generate personalized, conversational email 
+  introductions and output validated JSON objects matching your target schema.
+================================================================================
+"""
+
+import logging
 from datetime import datetime
 from typing import List, Optional
 from google import genai
@@ -8,10 +20,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
 
-# ====================================================================
-# PYDANTIC STRUCTURED OUTPUT SCHEMA DEFINITIONS
-# ====================================================================
+
 class EmailIntroduction(BaseModel):
     greeting: str = Field(description="Personalized greeting with user's name and date")
     introduction: str = Field(description="2-3 sentence overview of what's in the top 10 ranked articles")
@@ -35,27 +46,19 @@ class EmailDigestResponse(BaseModel):
     top_n: int
     
     def to_markdown(self) -> str:
-        markdown = f"{self.introduction.greeting}\n\n"
-        markdown += f"{self.introduction.introduction}\n\n"
-        markdown += "---\n\n"
+        markdown_str = f"{self.introduction.greeting}\n\n"
+        markdown_str += f"{self.introduction.introduction}\n\n"
+        markdown_str += "---\n\n"
         
         for article in self.articles:
-            markdown += f"## {article.title}\n\n"
-            markdown += f"{article.summary}\n\n"
-            markdown += f"[Read more →]({article.url})\n\n"
-            markdown += "---\n\n"
+            markdown_str += f"## {article.title}\n\n"
+            markdown_str += f"{article.summary}\n\n"
+            markdown_str += f"[Read more →]({article.url})\n\n"
+            markdown_str += "---\n\n"
         
-        return markdown
+        return markdown_str
 
 
-class EmailDigest(BaseModel):
-    introduction: EmailIntroduction
-    ranked_articles: List[dict] = Field(description="Top 10 ranked articles with their details")
-
-
-# ====================================================================
-# MASTER EMAIL CODESMITH SYSTEM PROMPT
-# ====================================================================
 EMAIL_PROMPT = """You are an expert email writer specializing in creating engaging, personalized AI news digests.
 
 Your role is to write a warm, professional introduction for a daily AI news digest email that:
@@ -68,12 +71,8 @@ Your role is to write a warm, professional introduction for a daily AI news dige
 Keep it concise (2-3 sentences for the introduction), friendly, and professional."""
 
 
-# ====================================================================
-# GEMINI EMAIL AGENT INTERFACE
-# ====================================================================
 class EmailAgent:
     def __init__(self, user_profile: dict):
-        # Initialize the native Google GenAI SDK client
         self.client = genai.Client()
         self.model = "gemini-2.5-flash"
         self.user_profile = user_profile
@@ -101,26 +100,22 @@ Top 10 ranked articles:
 Generate a greeting and introduction that previews these articles."""
 
         try:
-            # Build the modern configuration layout forcing Gemini to map back to your Pydantic schema
             config = types.GenerateContentConfig(
                 system_instruction=EMAIL_PROMPT,
-                temperature=0.7,  # Conversational sweet spot
+                temperature=0.7,  
                 response_mime_type="application/json",
                 response_schema=EmailIntroduction,
             )
 
-            # Fire off the generation request to your Gemini API endpoint
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=user_prompt,
                 config=config
             )
             
-            # Validate and parse the returned text data structure
             if response and response.text:
                 intro = EmailIntroduction.model_validate_json(response.text)
                 
-                # Double-check that your user's name is enforced safely in the string
                 if not intro.greeting.startswith(f"Hey {self.user_profile['name']}"):
                     intro.greeting = f"Hey {self.user_profile['name']}, here is your daily digest of AI news for {current_date}."
                 
@@ -129,20 +124,11 @@ Generate a greeting and introduction that previews these articles."""
             raise ValueError("Empty response text returned from Gemini SDK.")
             
         except Exception as e:
-            print(f"Diagnostics: Email Agent failed to generate introduction: {e}")
+            logger.error(f"Email Agent failed to generate structured introduction via LLM: {e}")
             return EmailIntroduction(
                 greeting=f"Hey {self.user_profile['name']}, here is your daily digest of AI news for {current_date}.",
                 introduction="Here are the top 10 AI news articles ranked by relevance to your interests."
             )
-
-    def create_email_digest(self, ranked_articles: List[dict], limit: int = 10) -> EmailDigest:
-        top_articles = ranked_articles[:limit]
-        introduction = self.generate_introduction(top_articles)
-        
-        return EmailDigest(
-            introduction=introduction,
-            ranked_articles=top_articles
-        )
     
     def create_email_digest_response(self, ranked_articles: List[RankedArticleDetail], total_ranked: int, limit: int = 10) -> EmailDigestResponse:
         top_articles = ranked_articles[:limit]

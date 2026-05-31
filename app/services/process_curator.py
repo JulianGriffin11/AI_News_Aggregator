@@ -1,15 +1,27 @@
-import logging
+"""
+================================================================================
+🎯 SERVICE LAYER: LLM USER PROFILE CURATION LAYER
+================================================================================
+Description:
+  This module serves as the personalization engine. It extracts recent AI news
+  summaries from the storage layer and passes them directly to the Curator Agent
+  to score, rank, and document contextual reasoning metrics matching your target
+  demographic or interest background matrix.
+================================================================================
+"""
+
 import sys
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
-
-load_dotenv()
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from app.agent.curator_agent import CuratorAgent
 from app.profiles.user_profile import USER_PROFILE
 from app.database.repository import Repository
+
+load_dotenv()
+
+# Resolve path mappings for standalone execution scripts
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,28 +39,17 @@ def curate_digests(hours: int = 24) -> dict:
     total = len(digests)
     
     if total == 0:
-        logger.warning(f"No digests found from the last {hours} hours")
+        logger.warning(f"No recent database digests discovered inside the last {hours} hour window.")
         return {"total": 0, "ranked": 0}
     
-    logger.info(f"Curating {total} digests from the last {hours} hours")
-    logger.info(f"User profile: {USER_PROFILE['name']} - {USER_PROFILE['background']}")
-    
+    logger.info(f"Evaluating {total} digests against target metric vector profile: '{USER_PROFILE.get('name', 'Default')}'...")
     ranked_articles = curator.rank_digests(digests)
     
     if not ranked_articles:
-        logger.error("Failed to rank digests")
+        logger.error("Core profile algorithm failed to calculate relevancy metrics across data slice.")
         return {"total": total, "ranked": 0}
     
-    logger.info(f"Successfully ranked {len(ranked_articles)} articles")
-    logger.info("\n=== Top 10 Ranked Articles ===")
-    
-    for article in ranked_articles[:10]:
-        digest = next((d for d in digests if d["id"] == article.digest_id), None)
-        if digest:
-            logger.info(f"\nRank {article.rank} | Score: {article.relevance_score:.1f}/10.0")
-            logger.info(f"Title: {digest['title']}")
-            logger.info(f"Type: {digest['article_type']}")
-            logger.info(f"Reasoning: {article.reasoning}")
+    logger.info(f"✓ Profile matrix matching resolved. Successfully ranked {len(ranked_articles)} items.")
     
     return {
         "total": total,
@@ -66,8 +67,5 @@ def curate_digests(hours: int = 24) -> dict:
 
 
 if __name__ == "__main__":
-    result = curate_digests(hours=24)
-    print(f"\n=== Curation Results ===")
-    print(f"Total digests: {result['total']}")
-    print(f"Ranked: {result['ranked']}")
-
+    curation_metrics = curate_digests(hours=24)
+    logger.info(f"Local Dry Run Summary -> {curation_metrics}")

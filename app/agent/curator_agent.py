@@ -1,5 +1,17 @@
-import os
-from typing import List, Optional
+"""
+================================================================================
+🎯 AGENT LAYER: DETERMINISTIC LLM PROFILE CURATOR
+================================================================================
+Description:
+  This module implements the Curator Agent engine. It dynamically constructs
+  custom system instructions by pairing a master prompt with the user's active
+  biography footprint, maps out scoring guidelines, and triggers the Gemini
+  structured JSON endpoint to cleanly rank database items.
+================================================================================
+"""
+
+import logging
+from typing import List
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
@@ -7,10 +19,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
 
-# ====================================================================
-# PYDANTIC STRUCTURED OUTPUT SCHEMA DEFINITIONS
-# ====================================================================
+
 class RankedArticle(BaseModel):
     digest_id: str = Field(description="The ID of the digest (article_type:article_id)")
     relevance_score: float = Field(description="Relevance score from 0.0 to 10.0", ge=0.0, le=10.0)
@@ -22,9 +33,6 @@ class RankedDigestList(BaseModel):
     articles: List[RankedArticle] = Field(description="List of ranked articles")
 
 
-# ====================================================================
-# MASTER CURATION SYSTEM PROMPT
-# ====================================================================
 CURATOR_PROMPT = """You are an expert AI news curator specializing in personalized content ranking for AI professionals.
 
 Your role is to analyze and rank AI-related news articles, research papers, and video content based on a user's specific profile, interests, and background.
@@ -46,19 +54,14 @@ Scoring Guidelines:
 Rank articles from most relevant (rank 1) to least relevant. Ensure each article has a unique rank."""
 
 
-# ====================================================================
-# GEMINI CURATOR AGENT INTERFACE
-# ====================================================================
 class CuratorAgent:
     def __init__(self, user_profile: dict):
-        # Initialize the native Google GenAI SDK client
         self.client = genai.Client()
         self.model = "gemini-2.5-flash"
         self.user_profile = user_profile
         self.system_prompt = self._build_system_prompt()
 
     def _build_system_prompt(self) -> str:
-        """Dynamically pieces together your system prompt using the provided profile dictionary."""
         interests = "\n".join(f"- {interest}" for interest in self.user_profile["interests"])
         preferences = self.user_profile["preferences"]
         pref_text = "\n".join(f"- {k}: {v}" for k, v in preferences.items())
@@ -77,14 +80,9 @@ Preferences:
 {pref_text}"""
 
     def rank_digests(self, digests: List[dict]) -> List[RankedArticle]:
-        """
-        Takes raw stored summaries out of your Postgres digests table and pushes 
-        them to Gemini to get ranked based on your custom interest profile.
-        """
         if not digests:
             return []
         
-        # Package up the data string to send to Gemini
         digest_list = "\n\n".join([
             f"ID: {d['id']}\nTitle: {d['title']}\nSummary: {d['summary']}\nType: {d['article_type']}"
             for d in digests
@@ -97,7 +95,6 @@ Preferences:
 Provide a relevance score (0.0-10.0) and rank (1-{len(digests)}) for each article, ordered from most to least relevant."""
 
         try:
-            # Build the modern configuration layout forcing Gemini to map back to your Pydantic schema
             config = types.GenerateContentConfig(
                 system_instruction=self.system_prompt,
                 temperature=0.3,
@@ -105,14 +102,12 @@ Provide a relevance score (0.0-10.0) and rank (1-{len(digests)}) for each articl
                 response_schema=RankedDigestList,
             )
 
-            # Fire off the generation packet straight to your AI Studio key endpoint
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=user_prompt,
                 config=config
             )
             
-            # Validate and parse the returned structured text into the Pydantic list structure
             if response and response.text:
                 ranked_list = RankedDigestList.model_validate_json(response.text)
                 return ranked_list.articles
@@ -120,5 +115,5 @@ Provide a relevance score (0.0-10.0) and rank (1-{len(digests)}) for each articl
             return []
             
         except Exception as e:
-            print(f"Diagnostics: Curator Agent failed to rank digests: {e}")
+            logger.error(f"Curator Agent failed to parse structured alignment evaluation matrix: {e}")
             return []
