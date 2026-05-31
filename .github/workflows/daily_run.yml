@@ -1,0 +1,32 @@
+name: Daily AI News Aggregator Pipeline
+
+on:
+  schedule:
+    # Triggers automatically every single day at 8:00 AM UTC
+    - cron: '0 8 * * *'
+  workflow_dispatch: # Allows you to trigger it manually via GitHub button
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v3
+
+      - name: Set Up Python Runtime Environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Application Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Execute Master Aggregator Pipeline
+        env:
+          # Injects your cloud credentials securely at runtime
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MY_EMAIL: ${{ secrets.MY_EMAIL }}
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+        run: python3 main.py
