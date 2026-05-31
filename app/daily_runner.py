@@ -43,20 +43,48 @@ def run_daily_pipeline(hours: int = 24, top_n: int = 10) -> dict:
         }
         logger.info(f"✓ Scraped {results['scraping']['openai']} OpenAI articles, "
                     f"{results['scraping']['anthropic']} Anthropic articles")
-        
-        # NOTE: Old Stage 2 (Anthropic markdown cleaning) was removed completely 
-        # since your process_digests file handles both sources at once!
 
         # --------------------------------------------------------
         # STAGE 2: CREATE SUMMARIES (UNIFIED DIGEST ENGINE)
         # --------------------------------------------------------
         logger.info("\n[2/3] Creating digests for articles...")
-        # Fixed: Calling process_digests() with an 's' to match the top import!
         digest_result = process_digests()
         results["digests"] = digest_result
         logger.info(f"✓ Created {digest_result['processed']} digests "
                     f"({digest_result['failed']} failed out of {digest_result['total']} total)")
         
+        # --------------------------------------------------------
+        # CRITICAL SAFETY CHECK: INTERCEPT ZERO-ARTICLE QUIET DAYS
+        # --------------------------------------------------------
+        if digest_result.get("processed", 0) == 0:
+            logger.info("\n============================================================")
+            logger.info("📢 Quiet Day: No new articles to process. Bypassing email.")
+            logger.info("============================================================")
+            
+            # Formulate a successful response early, bypassing Stage 3's crash condition completely
+            results["success"] = True
+            results["email"] = {
+                "success": True,
+                "status": "Skipped",
+                "reason": "No digests available for the current execution window"
+            }
+            
+            # Log the successful exit metrics block immediately
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+            results["end_time"] = end_time.isoformat()
+            results["duration_seconds"] = duration
+            
+            logger.info("\n" + "=" * 60)
+            logger.info("Pipeline Summary")
+            logger.info("=" * 60)
+            logger.info(f"Duration: {duration:.1f} seconds")
+            logger.info(f"Scraped: {results['scraping']}")
+            logger.info(f"Digests: {results['digests']}")
+            logger.info("Email: Skipped (No Content)")
+            logger.info("=" * 60)
+            return results
+
         # --------------------------------------------------------
         # STAGE 3: PERSONALIZED CURATION AND EMAIL TRANSMISSION
         # --------------------------------------------------------
@@ -80,7 +108,7 @@ def run_daily_pipeline(hours: int = 24, top_n: int = 10) -> dict:
     results["duration_seconds"] = duration
     
     # --------------------------------------------------------
-    # FINAL EXECUTION SUMMARY LOG
+    # FINAL EXECUTION SUMMARY LOG (FOR NORMAL EMAIL RUNS)
     # --------------------------------------------------------
     logger.info("\n" + "=" * 60)
     logger.info("Pipeline Summary")
