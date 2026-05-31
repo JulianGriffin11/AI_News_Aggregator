@@ -4,6 +4,8 @@ Welcome to the **Daily AI News Aggregator Pipeline**! This repository contains t
 
 ---
 
+![GitHub Actions Workflow Run](Images/example.png)
+
 ## ⚡ Quick Overview
 
 *   **Core Purpose:** Efficiently collect recent AI-related content, summarize it via an LLM, rank the results based on user preferences, and provide a clean daily digest via email.
@@ -23,9 +25,11 @@ Welcome to the **Daily AI News Aggregator Pipeline**! This repository contains t
 
 1.  **Scrapers:** Collect fresh content from target newsrooms and store raw metadata items securely in the database.
 2.  **Processing Services:** Clean, parse, and enrich text content (e.g., stripping markdown, verifying time-windows).
-3.  **AI Agents:** Execute a custom **Plan ➔ Ask ➔ Edit** orchestration loop using an LLM to summarize, rank, and generate engaging email text.
+3.  **AI Agents:** Customized **Plan ➔ Ask ➔ Edit** orchestration loop using an LLM to summarize, rank, and generate engaging email text.
 4.  **Repository Layer:** Interacts with the relational database to save generated digests, track history, and prevent duplicate logs.
-5.  **Email Service:** Builds the final responsive HTML container and delivers the briefing via secure **SMTP relays**.
+5.  **Email Service:** Builds the final responsive HTML container and sends email.
+
+---
 
 ### 🔄 Agent Loop (Plan ➔ Ask ➔ Edit) — Beginner Explanation
 
@@ -42,7 +46,7 @@ Welcome to the **Daily AI News Aggregator Pipeline**! This repository contains t
 The pipeline is completely split into independent, highly modular operational layers:
 
 *   🖥️ **Compute (GitHub Actions):** Wakes up automatically every morning at **4:00 AM EST** using a scheduled **cron job trigger**. It provisions a temporary Linux container environment, injects encrypted repository secrets, and fires up the master execution script.
-*   🗄️ **Storage (Render PostgreSQL):** A managed relational database cloud instance hosting a secure `ai_news_aggregator` schema. It synchronizes data models via **SQLAlchemy ORM** to ensure robust data persistence.
+*   🗄️ **Storage (Render PostgreSQL):** A managed relational database cloud instance hosting a secure `ai_news_aggregator` schema. It synchronizes data models via **SQLAlchemy** to ensure robust data persistence.
 *   🧠 **Intelligence (Gemini API):** Processes the raw scraped text, manages lookback evaluation frames, and synthesizes high-quality summaries on autopilot.
 
 ---
